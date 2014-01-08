@@ -74,7 +74,7 @@ func main() {
 		query := "INSERT INTO song_discovery (name, artist, album, date, user, playcount, image) VALUES "
 		for _, t := range firstplays {
 			timestamp, _ := strconv.ParseInt(t.Date.Uts, 10, 64)
-			query += fmt.Sprintf("(%q, %q, %q, %d, %q, %d, %q), ", t.Name, t.Artist.Text, t.Album.Text, timestamp, user.Name, 0, t.Image[1].Text)
+			query += fmt.Sprintf("(%q, %q, %q, %d, %q, %d, %q), ", t.Name, t.Artist.Text, t.Album.Text, timestamp, user.Name, 0, t.Image[2].Text)
 		}
 		query = query[:len(query)-2] + " ON DUPLICATE KEY UPDATE date=VALUES(date), playcount=VALUES(playcount), image=VALUES(image);"
 		// insert/update tracks in database
