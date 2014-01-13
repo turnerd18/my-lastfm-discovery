@@ -37,6 +37,10 @@ func main() {
 		users = append(users, user)
 	}
 
+	type MyTrack struct {
+		Track lastfm.APITrack
+		Playcount string
+	}
 	// get all scrobbles for each user
 	for _, user = range users {
 		api, err := lastfm.NewAPI(apikey, apisecret, user.Name, user.Sk)
@@ -66,15 +70,32 @@ func main() {
 		}
 		// make map of first time each track was played
 		// assume last instance of track in tracks is oldest
-		firstplays := make(map[string]lastfm.APITrack)
+		firstplays := make(map[string]*MyTrack)
 		for _, t := range tracks {
-			firstplays[t.Name + "|" + t.Artist.Text + "|" + t.Album.Text] = t
+			insert := MyTrack{}
+			insert.Track = t
+			firstplays[t.Name + "|" + t.Artist.Text + "|" + t.Album.Text] = &insert
+		}
+		// get user library for playcounts
+		pagelimit = len(firstplays) / 10
+		for page := 1; page < 12; page++ {
+			library, err := api.LibraryGetTracks(user.Name, "", "", page, pagelimit)
+			if err != nil {
+				fmt.Println("error getting library tracks at page ", page, " ", err.Error())
+			} else {
+				for _, t := range library {
+					if firstplays[t.Name + "|" + t.Artist.Name + "|" + t.Album.Name] != nil {
+						firstplays[t.Name + "|" + t.Artist.Name + "|" + t.Album.Name].Playcount = t.Playcount
+					}
+				}
+			}
 		}
 		// build sql insert query
 		query := "INSERT INTO song_discovery (name, artist, album, date, user, playcount, image) VALUES "
 		for _, t := range firstplays {
-			timestamp, _ := strconv.ParseInt(t.Date.Uts, 10, 64)
-			query += fmt.Sprintf("(%q, %q, %q, %d, %q, %d, %q), ", t.Name, t.Artist.Text, t.Album.Text, timestamp, user.Name, 0, t.Image[2].Text)
+			timestamp, _ := strconv.ParseInt(t.Track.Date.Uts, 10, 64)
+			playcount, _ := strconv.ParseInt(t.Playcount, 10, 16)
+			query += fmt.Sprintf("(%q, %q, %q, %d, %q, %d, %q), ", t.Track.Name, t.Track.Artist.Text, t.Track.Album.Text, timestamp, user.Name, playcount, t.Track.Image[2].Text)
 		}
 		query = query[:len(query)-2] + " ON DUPLICATE KEY UPDATE date=VALUES(date), playcount=VALUES(playcount), image=VALUES(image);"
 		// insert/update tracks in database
@@ -84,4 +105,5 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	con.Close()
 }
